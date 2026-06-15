@@ -1,26 +1,26 @@
-# Forge 🚀
+# Forge
 
 Forge is a full-stack collaborative project management platform designed to help teams organize projects, manage tasks, track productivity, and monitor progress through analytics. It combines project planning, Kanban-based task management, time tracking, learning journals, weekly goals, and team collaboration into a single workspace.
 
 ---
 
-# 📌 Features
+# Features
 
-## 👥 Team Management
+## Team Management
 
 - Create and manage teams
 - Join teams using invite codes
 - Team Admin role for team administration
 - Team-based project collaboration
 
-## 📁 Project Management
+## Project Management
 
 - Create and manage projects
 - Set project descriptions and timelines
 - Organize tasks within projects
 - Track project progress
 
-## ✅ Task Management
+## Task Management
 
 - Kanban Board workflow
 - Create, edit, and delete tasks
@@ -43,35 +43,35 @@ Forge is a full-stack collaborative project management platform designed to help
 - HIGH
 - CRITICAL
 
-## ⏱️ Time Tracking
+## Time Tracking
 
 - Log hours worked on tasks
 - Record work dates
 - Add notes to work logs
 - Monitor team productivity
 
-## 🎯 Weekly Goals
+## Weekly Goals
 
 - Set weekly objectives
 - Submit end-of-week reflections
 - Rate goal helpfulness
 - Track personal and team progress
 
-## 📋 My Tasks
+## My Tasks
 
 - View all assigned tasks
 - Update task statuses
 - Track weekly work hours
 - Monitor personal workload
 
-## 📚 Learning Log
+## Learning Log
 
 - Maintain a personal learning journal
 - Link learning entries to tasks
 - Record daily learnings
 - Export entries as JSON
 
-## 📊 Analytics Dashboard
+## Analytics Dashboard
 
 - Lead Time Analysis
 - Cycle Time Analysis
@@ -80,7 +80,7 @@ Forge is a full-stack collaborative project management platform designed to help
 - Team Performance Metrics
 - Project Health Score
 
-## 🛠️ Admin Dashboard
+## Admin Dashboard
 
 Platform administrators can:
 
@@ -91,7 +91,7 @@ Platform administrators can:
 
 ---
 
-# 🏗️ Tech Stack
+# Tech Stack
 
 ## Frontend
 
@@ -118,7 +118,7 @@ Platform administrators can:
 
 ---
 
-# 📂 Project Structure
+# Project Structure
 
 ```text
 Forge/
@@ -150,7 +150,7 @@ Forge/
 
 ---
 
-# ⚙️ Prerequisites
+# Prerequisites
 
 Before running the project, ensure the following are installed:
 
@@ -161,7 +161,7 @@ Before running the project, ensure the following are installed:
 
 ---
 
-# 🚀 Installation & Setup
+# Installation and Setup
 
 ## Backend Setup
 
@@ -213,7 +213,7 @@ http://localhost:3000
 
 ---
 
-# 🔐 Authentication
+# Authentication
 
 Forge provides:
 
@@ -226,7 +226,7 @@ Forge provides:
 
 ---
 
-# 📖 API Documentation
+# API Documentation
 
 When the backend is running, Swagger documentation is available at:
 
@@ -236,7 +236,7 @@ http://localhost:5000/api/docs
 
 ---
 
-# 🧪 Running Tests
+# Running Tests
 
 ## Backend Tests
 
@@ -248,7 +248,7 @@ pytest
 
 ---
 
-# 🐳 Docker Support
+# Docker Support
 
 Run the application using Docker:
 
@@ -264,7 +264,7 @@ This will start:
 
 ---
 
-# 👨‍💻 User Workflow
+# User Workflow
 
 ## 1. Register or Login
 
@@ -301,7 +301,7 @@ Monitor project health and team productivity through dashboards.
 
 ---
 
-# 🎯 Key Benefits
+# Key Benefits
 
 - Improved team collaboration
 - Centralized project tracking
@@ -312,7 +312,7 @@ Monitor project health and team productivity through dashboards.
 
 ---
 
-# 📄 Documentation
+# Documentation
 
 Additional documentation is available in:
 
@@ -322,7 +322,7 @@ Additional documentation is available in:
 
 ---
 
-# 🤝 Contributing
+# Contributing
 
 1. Fork the repository
 2. Create a feature branch
