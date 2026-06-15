@@ -1,0 +1,881 @@
+openapi: "3.1.0"
+info:
+  title: Project Tracker API
+  version: "1.0.0"
+  description: |
+    Multi-team project and time-tracking REST API.
+    All endpoints except `/api/auth/*` require a Bearer JWT obtained from `/api/auth/login`.
+
+    **Roles**
+    - `USER` — read/write access scoped to their own team
+    - `TEAM_ADMIN` — USER permissions + team management
+    - `PLATFORM_ADMIN` — access to `/api/admin/*` aggregate endpoints only
+
+servers:
+  - url: http://localhost:5000
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    ValidationError:
+      type: object
+      properties:
+        error: { type: string, example: "Validation failed" }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+
+    Paginated:
+      type: object
+      properties:
+        page:     { type: integer, example: 1 }
+        per_page: { type: integer, example: 50 }
+        total:    { type: integer, example: 123 }
+        pages:    { type: integer, example: 3 }
+
+    User:
+      type: object
+      properties:
+        id:         { type: integer }
+        name:       { type: string }
+        email:      { type: string, format: email }
+        role:       { type: string, enum: [USER, TEAM_ADMIN, PLATFORM_ADMIN] }
+        team_id:    { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Team:
+      type: object
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        invite_code: { type: string }
+        created_at:  { type: string, format: date-time }
+
+    TeamMember:
+      type: object
+      properties:
+        id:           { type: integer }
+        team_id:      { type: integer }
+        user_id:      { type: integer }
+        user_name:    { type: string }
+        user_email:   { type: string }
+        role_in_team: { type: string, enum: [USER, TEAM_ADMIN] }
+        joined_at:    { type: string, format: date-time }
+
+    Project:
+      type: object
+      properties:
+        id:          { type: integer }
+        team_id:     { type: integer }
+        name:        { type: string }
+        description: { type: string, nullable: true }
+        start_date:  { type: string, format: date, nullable: true }
+        end_date:    { type: string, format: date, nullable: true }
+        created_by:  { type: integer }
+        created_at:  { type: string, format: date-time }
+
+    Task:
+      type: object
+      properties:
+        id:           { type: integer }
+        project_id:   { type: integer }
+        team_id:      { type: integer }
+        title:        { type: string }
+        description:  { type: string, nullable: true }
+        status:       { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+        priority:     { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+        created_by:   { type: integer }
+        assignee_id:  { type: integer, nullable: true }
+        due_date:     { type: string, format: date, nullable: true }
+        created_at:   { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+
+    StatusHistory:
+      type: object
+      properties:
+        id:          { type: integer }
+        task_id:     { type: integer }
+        from_status: { type: string, nullable: true }
+        to_status:   { type: string }
+        changed_at:  { type: string, format: date-time }
+        changed_by:  { type: integer }
+
+    Worklog:
+      type: object
+      properties:
+        id:         { type: integer }
+        task_id:    { type: integer }
+        team_id:    { type: integer }
+        user_id:    { type: integer }
+        date:       { type: string, format: date }
+        hours:      { type: number }
+        note:       { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    WeeklyGoal:
+      type: object
+      properties:
+        id:              { type: integer }
+        project_id:      { type: integer }
+        team_id:         { type: integer }
+        week_start_date: { type: string, format: date }
+        goal_text:       { type: string }
+        created_at:      { type: string, format: date-time }
+
+    WeeklyReflection:
+      type: object
+      properties:
+        id:                     { type: integer }
+        weekly_goal_id:         { type: integer }
+        met_goal:               { type: boolean }
+        blockers:               { type: string, nullable: true }
+        process_notes:          { type: string, nullable: true }
+        perceived_helpfulness:  { type: integer, minimum: 1, maximum: 5, nullable: true }
+        created_at:             { type: string, format: date-time }
+
+    LearningLog:
+      type: object
+      properties:
+        id:         { type: integer }
+        user_id:    { type: integer }
+        task_id:    { type: integer, nullable: true }
+        date:       { type: string, format: date }
+        summary:    { type: string }
+        created_at: { type: string, format: date-time }
+
+    ProjectMetrics:
+      type: object
+      properties:
+        project_id:          { type: integer }
+        avg_lead_time_days:  { type: number, nullable: true }
+        avg_cycle_time_days: { type: number, nullable: true }
+        throughput_per_week: { type: integer }
+        wip_by_status:
+          type: object
+          additionalProperties: { type: integer }
+        tasks_at_risk_count: { type: integer }
+        health_score:        { type: number, minimum: 0, maximum: 100 }
+
+    MemberStat:
+      type: object
+      properties:
+        user_id:             { type: integer }
+        user_name:           { type: string }
+        current_wip:         { type: integer }
+        tasks_done_last_7d:  { type: integer }
+        total_hours_last_7d: { type: number }
+        avg_cycle_time_days: { type: number, nullable: true }
+
+    TeamMetrics:
+      type: object
+      properties:
+        team_id:                   { type: integer }
+        member_stats:
+          type: array
+          items: { $ref: "#/components/schemas/MemberStat" }
+        weekly_goal_success_rate:  { type: number, nullable: true }
+        avg_perceived_helpfulness: { type: number, nullable: true }
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+    PerPageParam:
+      name: per_page
+      in: query
+      schema: { type: integer, default: 50, maximum: 200 }
+
+paths:
+
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:     { type: string, maxLength: 120 }
+                email:    { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:  { type: string }
+                  user_id:  { type: integer }
+        "400": { description: Validation error or duplicate email }
+        "422": { description: Schema validation failed }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login and obtain a JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:    { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  user_id:      { type: integer }
+                  role:         { type: string }
+                  team_id:      { type: integer, nullable: true }
+        "401": { description: Invalid credentials }
+
+  # ── Teams ───────────────────────────────────────────────────────────────────
+
+  /api/teams:
+    post:
+      tags: [Teams]
+      summary: Create a new team (caller becomes TEAM_ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 120 }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+        "400": { description: Already in a team or missing name }
+
+  /api/teams/join:
+    post:
+      tags: [Teams]
+      summary: Join a team via invite code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invite_code]
+              properties:
+                invite_code: { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+        "404": { description: Invalid invite code }
+
+  /api/teams/me:
+    get:
+      tags: [Teams]
+      summary: Get my team
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Team" }
+
+  /api/teams/me/members:
+    get:
+      tags: [Teams]
+      summary: List all members of my team
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TeamMember" }
+
+  /api/teams/me/members/{user_id}/role:
+    patch:
+      tags: [Teams]
+      summary: Update a member's role (TEAM_ADMIN only)
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role_in_team]
+              properties:
+                role_in_team: { type: string, enum: [USER, TEAM_ADMIN] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeamMember" }
+        "403": { description: Not a TEAM_ADMIN }
+
+  # ── Projects ─────────────────────────────────────────────────────────────────
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List projects for my team (paginated)
+      parameters:
+        - { $ref: "#/components/parameters/PageParam" }
+        - { $ref: "#/components/parameters/PerPageParam" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Paginated" }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: "#/components/schemas/Project" }
+    post:
+      tags: [Projects]
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:        { type: string, maxLength: 200 }
+                description: { type: string }
+                start_date:  { type: string, format: date }
+                end_date:    { type: string, format: date }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  /api/projects/{project_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Projects]
+      summary: Get a project
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "403": { description: Cross-team access denied }
+        "404": { description: Not found }
+    patch:
+      tags: [Projects]
+      summary: Update project fields (TEAM_ADMIN only)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:        { type: string }
+                description: { type: string }
+                start_date:  { type: string, format: date }
+                end_date:    { type: string, format: date }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+
+  # ── Tasks ─────────────────────────────────────────────────────────────────────
+
+  /api/tasks/project/{project_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Tasks]
+      summary: List tasks for a project (paginated, filterable)
+      parameters:
+        - { $ref: "#/components/parameters/PageParam" }
+        - { $ref: "#/components/parameters/PerPageParam" }
+        - name: status
+          in: query
+          schema: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+        - name: assignee_id
+          in: query
+          schema: { type: integer }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Paginated" }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: "#/components/schemas/Task" }
+    post:
+      tags: [Tasks]
+      summary: Create a task in a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:       { type: string, maxLength: 300 }
+                description: { type: string }
+                priority:    { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL], default: MEDIUM }
+                assignee_id: { type: integer }
+                due_date:    { type: string, format: date }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+
+  /api/tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Tasks]
+      summary: Get a single task
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+    patch:
+      tags: [Tasks]
+      summary: Update task fields
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:       { type: string }
+                description: { type: string }
+                priority:    { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+                assignee_id: { type: integer, nullable: true }
+                due_date:    { type: string, format: date, nullable: true }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+
+  /api/tasks/{task_id}/status:
+    post:
+      tags: [Tasks]
+      summary: Transition task status (writes status history, sets completed_at)
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_status]
+              properties:
+                to_status: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { description: Same status or invalid target }
+
+  /api/tasks/{task_id}/history:
+    get:
+      tags: [Tasks]
+      summary: Get full status history for a task
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/StatusHistory" }
+
+  # ── Worklogs ──────────────────────────────────────────────────────────────────
+
+  /api/worklogs/task/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Worklogs]
+      summary: List worklogs for a task (paginated)
+      parameters:
+        - { $ref: "#/components/parameters/PageParam" }
+        - { $ref: "#/components/parameters/PerPageParam" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Paginated" }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: "#/components/schemas/Worklog" }
+    post:
+      tags: [Worklogs]
+      summary: Log time against a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hours]
+              properties:
+                hours: { type: number, exclusiveMinimum: 0, maximum: 24 }
+                date:  { type: string, format: date, description: "Defaults to today" }
+                note:  { type: string }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Worklog" }
+
+  /api/worklogs/{worklog_id}:
+    delete:
+      tags: [Worklogs]
+      summary: Delete a worklog (own entries; TEAM_ADMIN can delete any)
+      parameters:
+        - name: worklog_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Deleted }
+        "403": { description: Not owner or insufficient role }
+
+  # ── Weekly Goals & Reflections ────────────────────────────────────────────────
+
+  /api/weekly/goals/project/{project_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Weekly]
+      summary: List weekly goals for a project
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Paginated" }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: "#/components/schemas/WeeklyGoal" }
+    post:
+      tags: [Weekly]
+      summary: Create a weekly goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [goal_text, week_start_date]
+              properties:
+                goal_text:       { type: string }
+                week_start_date: { type: string, format: date }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeeklyGoal" }
+
+  /api/weekly/goals/{goal_id}/reflections:
+    parameters:
+      - name: goal_id
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Weekly]
+      summary: List reflections for a goal
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/WeeklyReflection" }
+    post:
+      tags: [Weekly]
+      summary: Submit a reflection for a weekly goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [met_goal]
+              properties:
+                met_goal:               { type: boolean }
+                blockers:               { type: string }
+                process_notes:          { type: string }
+                perceived_helpfulness:  { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WeeklyReflection" }
+
+  # ── Learning Logs ─────────────────────────────────────────────────────────────
+
+  /api/learning:
+    get:
+      tags: [Learning]
+      summary: List learning log entries for the authenticated user
+      parameters:
+        - { $ref: "#/components/parameters/PageParam" }
+        - { $ref: "#/components/parameters/PerPageParam" }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Paginated" }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: "#/components/schemas/LearningLog" }
+    post:
+      tags: [Learning]
+      summary: Create a learning log entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [summary]
+              properties:
+                summary: { type: string }
+                date:    { type: string, format: date }
+                task_id: { type: integer }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LearningLog" }
+
+  /api/learning/{entry_id}:
+    delete:
+      tags: [Learning]
+      summary: Delete own learning log entry
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Deleted }
+        "403": { description: Not the owner }
+
+  # ── Analytics ─────────────────────────────────────────────────────────────────
+
+  /api/projects/{project_id}/metrics:
+    get:
+      tags: [Analytics]
+      summary: Aggregate metrics for a project
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProjectMetrics" }
+
+  /api/teams/me/metrics:
+    get:
+      tags: [Analytics]
+      summary: Member-level and team-level metrics for my team
+      responses:
+        "200":
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeamMetrics" }
+
+  # ── Admin (PLATFORM_ADMIN only) ───────────────────────────────────────────────
+
+  /api/admin/overview:
+    get:
+      tags: [Admin]
+      summary: Per-team aggregate overview
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    team_id:                      { type: integer }
+                    team_name:                    { type: string }
+                    user_count:                   { type: integer }
+                    project_count:                { type: integer }
+                    task_count:                   { type: integer }
+                    total_hours:                  { type: number }
+                    last_active_at:               { type: string, format: date-time, nullable: true }
+                    avg_weekly_goal_success_rate: { type: number, nullable: true }
+                    avg_perceived_helpfulness:    { type: number, nullable: true }
+        "403": { description: Not PLATFORM_ADMIN }
+
+  /api/admin/usage-timeseries:
+    get:
+      tags: [Admin]
+      summary: Weekly activity metrics per team
+      parameters:
+        - name: weeks
+          in: query
+          schema: { type: integer, default: 8, maximum: 52 }
+        - name: team_id
+          in: query
+          schema: { type: integer }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    week:            { type: string, example: "2025-W23" }
+                    team_id:         { type: integer }
+                    worklog_count:   { type: integer }
+                    hours_logged:    { type: number }
+                    tasks_completed: { type: integer }
+
+  /api/admin/feedback:
+    get:
+      tags: [Admin]
+      summary: List all feedback with team name
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:         { type: integer }
+                    team_id:    { type: integer }
+                    team_name:  { type: string }
+                    category:   { type: string }
+                    message:    { type: string }
+                    status:     { type: string }
+                    created_at: { type: string, format: date-time }
+
+  /api/admin/feedback/{feedback_id}:
+    patch:
+      tags: [Admin]
+      summary: Update feedback status
+      parameters:
+        - name: feedback_id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [OPEN, REVIEWED, CLOSED] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:     { type: integer }
+                  status: { type: string }
